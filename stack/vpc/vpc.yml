@@ -1,0 +1,206 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  This CloudFormation template creates a comprehensive VPC infrastructure in AWS.
+  It includes:
+  - A VPC with customizable CIDR block
+  - Public and private subnets in one Availability Zone
+  - An Internet Gateway for public internet access
+  - A NAT Gateway for private subnet internet access
+  - Appropriate route tables for both public and private subnets
+  - A default Security Group with basic ingress and egress rules
+  The template uses parameters to allow for easy customization of network ranges and environment naming.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Description: An environment name that is prefixed to resource names
+
+  VpcCIDR:
+    Type: String
+    Description: CIDR block for the VPC
+    Default: "10.0.0.0/16"
+
+  PublicSubnetCIDR1:
+    Type: String
+    Description: CIDR block for the public subnet 1
+    Default: "10.0.1.0/24"
+
+
+  PrivateSubnetCIDR1:
+    Type: String
+    Description: CIDR block for the private subnet 1
+    Default: "10.0.2.0/24"
+
+  AvailabilityZone1:
+    Type: String
+    Description: Availability Zone 1
+    Default: "us-east-1a"
+
+
+
+Resources:
+  VPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-vpc"
+        
+
+  InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-igw"
+
+  AttachGateway:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PublicSubnetCIDR1
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Ref AvailabilityZone1
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-public-subnet-1"
+  
+
+  PrivateSubnet1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateSubnetCIDR1
+      AvailabilityZone: !Ref AvailabilityZone1
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-private-subnet-1"
+  
+  NatGatewayEIP1:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-nat-eip-1"
+
+  NatGatewayEIP2:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-nat-eip-2"
+
+  NatGateway1:
+    Type: AWS::EC2::NatGateway
+    Properties: 
+      AllocationId: !GetAtt NatGatewayEIP1.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-nat-gateway-1"
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-Public Route Table"
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: '0.0.0.0/0'
+      GatewayId: !Ref InternetGateway
+  
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet1
+
+  PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Private Route Table 1
+
+  PrivateRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway1
+        
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      SubnetId: !Ref PrivateSubnet1    
+
+  DefaultSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Default security group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: -1
+          CidrIp: '0.0.0.0/0'
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: '0.0.0.0/0'
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-default-sg"
+
+Outputs:
+    VPCId:
+      Value: !Ref VPC
+      Description: VPC ID
+
+    InternetGatewayId:
+      Value: !Ref InternetGateway
+      Description: Internet Gateway ID
+
+    NATGatewayIds:
+      Description: The IDs of the NAT Gateways
+      Value: !Join [ ",", [ !Ref NatGateway1 ] ]
+
+    PublicSubnets:
+      Description: A list of the public subnets
+      Value: !Join [ ",", [ !Ref PublicSubnet1]]
+    
+
+    PrivateSubnets:
+      Description: A list of the private subnets
+      Value: !Join [ ",", [ !Ref PrivateSubnet1]]
+
+    PublicRouteTableId:
+      Description: The ID of the public route table
+      Value: !Ref PublicRouteTable
+
+    PrivateRouteTableIds:
+      Description: The IDs of the private route tables
+      Value: !Join [",", [!Ref PrivateRouteTable1]]
+
+
+    DefaultSecurityGroup:
+      Description: Default Security Group
+      Value: !Ref DefaultSecurityGroup
+      

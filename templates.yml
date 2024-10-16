@@ -1,0 +1,133 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation stack for deploying the application's core infrastructure.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Description: Prefix for resource names
+
+  VpcCIDR:
+    Type: String
+    Description: VPC CIDR block
+    Default: "10.0.0.0/16"
+  
+  PublicSubnetCIDR1:
+    Type: String
+    Description: Public subnet 1 CIDR block
+    Default: "10.0.1.0/24"
+
+  PrivateSubnetCIDR1:
+    Type: String
+    Description: Private subnet 1 CIDR block
+    Default: "10.0.2.0/24"
+
+  AvailabilityZone1:
+    Type: String
+    Description: First availability zone
+    Default: "us-east-1a"
+
+  AllowedSSHIP:
+    Type: String
+    Description: CIDR for SSH access to public EC2 instance
+    Default: "192.168.86.1/32"
+    
+  InstanceType:
+    Type: String
+    Description: EC2 instance type
+    Default: "t2.micro"
+    AllowedValues:
+      - t2.micro
+      - t2.small
+      - t2.medium
+    ConstraintDescription: Must be a valid EC2 instance type.
+
+  KeyPairName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: EC2 instance key pair
+
+  LatestAmiId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+
+  S3BucketName:
+    Type: String
+    Description: S3 bucket for nested templates
+
+Resources:
+  VPCStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      TemplateURL: !Sub "https://${S3BucketName}.s3.amazonaws.com/vpc/vpc.yml"
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        VpcCIDR: !Ref VpcCIDR
+        PublicSubnetCIDR1: !Ref PublicSubnetCIDR1
+        PrivateSubnetCIDR1: !Ref PrivateSubnetCIDR1
+        AvailabilityZone1: !Ref AvailabilityZone1
+
+
+  SecurityGroupsStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      TemplateURL: !Sub "https://${S3BucketName}.s3.amazonaws.com/security_groups/security_groups.yml"
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        VpcId: !GetAtt VPCStack.Outputs.VPCId
+        AllowedSSHIP: !Ref AllowedSSHIP
+
+  EC2InstancesStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      TemplateURL: !Sub "https://${S3BucketName}.s3.amazonaws.com/ec2/ec2.yml"
+      Parameters:
+        InstanceType: !Ref InstanceType
+        KeyPairName: !Ref KeyPairName
+        LatestAmiId: !Ref LatestAmiId
+        PublicSubnetIds: !GetAtt VPCStack.Outputs.PublicSubnets
+        PrivateSubnetIds: !GetAtt VPCStack.Outputs.PrivateSubnets
+        PublicSecurityGroupId: !GetAtt SecurityGroupsStack.Outputs.PublicSecurityGroupId
+        PrivateSecurityGroupId: !GetAtt SecurityGroupsStack.Outputs.PrivateSecurityGroupId
+
+
+Outputs:
+  VPCId:
+    Description: VPC ID
+    Value: !GetAtt VPCStack.Outputs.VPCId
+
+  InternetGatewayId:
+    Description: Internet Gateway ID
+    Value: !GetAtt VPCStack.Outputs.InternetGatewayId
+
+  PublicSubnetIds:
+    Description: Public Subnet IDs
+    Value: !GetAtt VPCStack.Outputs.PublicSubnets
+
+  PrivateSubnetIds:
+    Description: Private Subnet IDs
+    Value: !GetAtt VPCStack.Outputs.PrivateSubnets
+
+  DefaultSecurityGroup:
+    Description: Default Security Group ID
+    Value: !GetAtt VPCStack.Outputs.DefaultSecurityGroup
+
+  PublicSecurityGroupId:
+    Description: Public Server Security Group ID
+    Value: !GetAtt SecurityGroupsStack.Outputs.PublicSecurityGroupId
+
+  PrivateSecurityGroupId:
+    Description: Database Security Group ID
+    Value: !GetAtt SecurityGroupsStack.Outputs.PrivateSecurityGroupId
+
+  PublicEC2InstanceIds:
+    Description: Public EC2 Instance IDs
+    Value: !GetAtt EC2InstancesStack.Outputs.PublicEC2InstanceIds
+
+  PrivateEC2InstanceIds:
+    Description: Private EC2 Instance IDs
+    Value: !GetAtt EC2InstancesStack.Outputs.PrivateEC2InstanceIds
