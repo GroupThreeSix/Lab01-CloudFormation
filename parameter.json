@@ -25,11 +25,14 @@
     },
     {
         "ParameterKey": "KeyPairName",
-        "ParameterValue": "groupthreesix"
+        "ParameterValue": "groupthreesix1"
     },
     {
         "ParameterKey": "InstanceType",
         "ParameterValue": "t2.micro"
+    },
+    {
+        "ParameterKey": "S3BucketName",
+        "ParameterValue": "groupthreesix"
     }
-    
 ]

@@ -24,10 +24,6 @@ Parameters:
     Type: AWS::EC2::KeyPair::KeyName
     ConstraintDescription: must be the name of an existing EC2 KeyPair.
   
-  LatestAmiId:
-    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
-    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
-
   PublicSubnetIds:
     Type: String
     Description: A list of public subnet IDs that will be associated with the public route table
@@ -54,7 +50,7 @@ Resources:
     Properties:
       InstanceType: !Ref InstanceType
       KeyName: !Ref KeyPairName
-      ImageId: !Ref LatestAmiId
+      ImageId: "ami-0866a3c8686eaeeba"
       SecurityGroupIds:
         - !Ref PrivateSecurityGroupId
       SubnetId: !Select [ 0, !Split [ ",", !Ref PrivateSubnetIds ] ]
@@ -69,20 +65,13 @@ Resources:
     Properties:
       InstanceType: !Ref InstanceType
       KeyName: !Ref KeyPairName
-      ImageId: !Ref LatestAmiId
+      ImageId: "ami-0866a3c8686eaeeba"
       SecurityGroupIds:
         - !Ref PublicSecurityGroupId
       SubnetId: !Select [ 0, !Split [ ",", !Ref PublicSubnetIds] ]
-    # UserData:
-    #   Fn::Base64:
-    #     !Sub  |
-    #          ssh-keygen -t rsa -b 2048 -f ~/.ssh/my-key
-    #          -private=
-    #          -Fn::GetAtt:
-    #             - PrivateEC2Instance1
-    #             - PrivateIp
-    #          ssh-copy-id -i ~/.ssh/my-key.pub ec2-user@private
-
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-PublicInstance"
 
 Outputs:
   PublicEC2InstanceIds:
@@ -92,4 +81,3 @@ Outputs:
   PrivateEC2InstanceIds:
     Description: The IDs of the Private EC2 Instances
     Value: !Join [ ",", [ !Ref PrivateEC2Instance1 ] ]
-  

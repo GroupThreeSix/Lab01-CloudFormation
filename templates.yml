@@ -45,10 +45,6 @@ Parameters:
     Type: AWS::EC2::KeyPair::KeyName
     Description: EC2 instance key pair
 
-  LatestAmiId:
-    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
-    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
-
   S3BucketName:
     Type: String
     Description: S3 bucket for nested templates
@@ -88,7 +84,6 @@ Resources:
       Parameters:
         InstanceType: !Ref InstanceType
         KeyPairName: !Ref KeyPairName
-        LatestAmiId: !Ref LatestAmiId
         PublicSubnetIds: !GetAtt VPCStack.Outputs.PublicSubnets
         PrivateSubnetIds: !GetAtt VPCStack.Outputs.PrivateSubnets
         PublicSecurityGroupId: !GetAtt SecurityGroupsStack.Outputs.PublicSecurityGroupId
