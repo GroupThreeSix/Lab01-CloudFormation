@@ -1,0 +1,47 @@
+version: 0.2
+
+env:
+  variables:
+    CFN_LINT_VERSION: "latest"      # Phiên bản cfn-lint
+    TASKCAT_VERSION: "latest"       # Phiên bản taskcat
+    S3_BUCKET_NAME: "groupthreesixbucket"  # Tên bucket S3
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.9                 # Sử dụng Python cho cfn-lint và taskcat
+    commands:
+      - echo "Installing dependencies..."
+      - pip install --upgrade pip
+      - pip install cfn-lint taskcat
+
+  pre_build:
+    commands:
+      - echo "Checking if S3 bucket exists..."
+      - |
+        if aws s3api head-bucket --bucket $S3_BUCKET_NAME>/dev/null; then
+          echo "S3 bucket does not exist. Exiting."
+        else
+          echo "Creating S3 bucket $S3_BUCKET_NAME"
+          aws s3api create-bucket --bucket $S3_BUCKET_NAME --region "us-east-1"
+        fi
+        echo "S3 bucket exists. Copying CloudFormation templates..."
+        aws s3 cp . s3://$S3_BUCKET_NAME/ --recursive
+
+  build:
+    commands:
+      - 
+      - echo "Running cfn-lint to validate CloudFormation templates..."
+      - cfn-lint ./templates.yml
+      - echo "Running taskcat to test CloudFormation templates..."
+      - taskcat test run -p .
+
+  post_build:
+    commands:
+      - echo "Packaging artifacts for deployment..."
+      - mkdir -p output
+      - cp ./*.yml ./output/
+artifacts:
+  files:
+    - output/**   # Đưa tất cả các file trong thư mục output vào artifact
+  discard-paths: no
